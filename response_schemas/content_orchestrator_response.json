@@ -1,0 +1,34 @@
+{
+  "agent_name": "Content Orchestrator",
+  "agent_id": "698f051e12acde9bce1a2ed4",
+  "description": "Parses user input type (topic/URL/idea/article), coordinates research-write-validate-humanize workflow with automated revision loops, maintains state between agents, aggregates final content package for LinkedIn posts.",
+  "agent_type": "json",
+  "accessor": "result",
+  "auto_generated": true,
+  "response_schema": {
+    "final_post": "string",
+    "research_summary": "string",
+    "hashtags": [
+      "string"
+    ],
+    "validation_status": "string",
+    "humanization_notes": "string",
+    "revision_count": "string",
+    "content_type": "string",
+    "target_audience": "string",
+    "tone": "string"
+  },
+  "example_response": {
+    "final_post": "sample string",
+    "research_summary": "sample string",
+    "hashtags": [
+      "sample string"
+    ],
+    "validation_status": "sample string",
+    "humanization_notes": "sample string",
+    "revision_count": "sample string",
+    "content_type": "sample string",
+    "target_audience": "sample string",
+    "tone": "sample string"
+  }
+}

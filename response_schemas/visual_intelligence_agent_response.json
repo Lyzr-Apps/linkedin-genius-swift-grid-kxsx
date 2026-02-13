@@ -1,0 +1,40 @@
+{
+  "agent_name": "Visual Intelligence Agent",
+  "agent_id": "698f051ea5557543846dfa96",
+  "description": "Analyzes post theme and generates visual concepts including single images, carousel ideas, infographic concepts with detailed image generation for LinkedIn post visuals.",
+  "agent_type": "json",
+  "accessor": "result",
+  "auto_generated": true,
+  "response_schema": {
+    "visual_concept": "string",
+    "image_type": "string",
+    "carousel_ideas": [
+      "string"
+    ],
+    "infographic_concept": "string",
+    "color_palette": [
+      "string"
+    ],
+    "design_notes": "string"
+  },
+  "example_response": {
+    "visual_concept": "sample string",
+    "image_type": "sample string",
+    "carousel_ideas": [
+      "sample string"
+    ],
+    "infographic_concept": "sample string",
+    "color_palette": [
+      "sample string"
+    ],
+    "design_notes": "sample string"
+  },
+  "has_module_outputs": true,
+  "module_outputs_example": {
+    "artifact_files": [
+      {
+        "file_url": "https://example.com/image.png"
+      }
+    ]
+  }
+}

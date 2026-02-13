@@ -1,0 +1,40 @@
+{
+  "agent_name": "LLM Judge Agent",
+  "agent_id": "698f051f2ae20ba37e454295",
+  "description": "Independent evaluator scoring content on Clarity, Originality, Authority, Authenticity, Engagement Potential (1-10 each) and Factual Integrity (Pass/Fail); returns specific improvement notes if score below threshold.",
+  "agent_type": "json",
+  "accessor": "result",
+  "auto_generated": true,
+  "response_schema": {
+    "clarity_score": "number",
+    "originality_score": "number",
+    "authority_score": "number",
+    "authenticity_score": "number",
+    "engagement_potential_score": "number",
+    "factual_integrity": "string",
+    "overall_score": "number",
+    "improvement_notes": [
+      "string"
+    ],
+    "strengths": [
+      "string"
+    ],
+    "verdict": "string"
+  },
+  "example_response": {
+    "clarity_score": 0,
+    "originality_score": 0,
+    "authority_score": 0,
+    "authenticity_score": 0,
+    "engagement_potential_score": 0,
+    "factual_integrity": "sample string",
+    "overall_score": 0,
+    "improvement_notes": [
+      "sample string"
+    ],
+    "strengths": [
+      "sample string"
+    ],
+    "verdict": "sample string"
+  }
+}

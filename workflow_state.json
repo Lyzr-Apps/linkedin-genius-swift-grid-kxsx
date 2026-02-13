@@ -1,0 +1,134 @@
+{
+  "project": "LinkedIn Genius Content Engine",
+  "pattern": "Manager-Subagent + Independent Agents (Hybrid)",
+  "created_at": "2026-02-13",
+  "agents": {
+    "content_orchestrator": {
+      "agent_id": "698f051e12acde9bce1a2ed4",
+      "name": "Content Orchestrator",
+      "type": "manager",
+      "provider": "openai",
+      "model": "gpt-4.1",
+      "temperature": 0.3,
+      "top_p": 1,
+      "capabilities": ["text"],
+      "managed_agents": [
+        "698f04f1a5557543846dfa8c",
+        "698f04f12ae20ba37e45428f",
+        "698f04f255986ea56d01f690",
+        "698f04f240511e94b7dafc83"
+      ],
+      "response_schema_file": "response_schemas/content_orchestrator_response.json"
+    },
+    "deep_research_agent": {
+      "agent_id": "698f04f1a5557543846dfa8c",
+      "name": "Deep Research Agent",
+      "type": "sub-agent",
+      "provider": "perplexity",
+      "model": "sonar-reasoning-pro",
+      "temperature": 0.2,
+      "top_p": 1,
+      "capabilities": ["text", "web_search_builtin"],
+      "parent_manager": "698f051e12acde9bce1a2ed4",
+      "response_schema_file": "response_schemas/deep_research_agent_response.json"
+    },
+    "linkedin_writer_agent": {
+      "agent_id": "698f04f12ae20ba37e45428f",
+      "name": "LinkedIn Writer Agent",
+      "type": "sub-agent",
+      "provider": "openai",
+      "model": "gpt-4.1",
+      "temperature": 0.7,
+      "top_p": 0.95,
+      "capabilities": ["text"],
+      "parent_manager": "698f051e12acde9bce1a2ed4",
+      "response_schema_file": "response_schemas/linkedin_writer_agent_response.json"
+    },
+    "fact_validation_agent": {
+      "agent_id": "698f04f255986ea56d01f690",
+      "name": "Fact Validation Agent",
+      "type": "sub-agent",
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-5",
+      "temperature": 0.2,
+      "top_p": 1,
+      "capabilities": ["text"],
+      "parent_manager": "698f051e12acde9bce1a2ed4",
+      "response_schema_file": "response_schemas/fact_validation_agent_response.json"
+    },
+    "humanization_agent": {
+      "agent_id": "698f04f240511e94b7dafc83",
+      "name": "Humanization Agent",
+      "type": "sub-agent",
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-5",
+      "temperature": 0.6,
+      "top_p": 0.95,
+      "capabilities": ["text"],
+      "parent_manager": "698f051e12acde9bce1a2ed4",
+      "response_schema_file": "response_schemas/humanization_agent_response.json"
+    },
+    "visual_intelligence_agent": {
+      "agent_id": "698f051ea5557543846dfa96",
+      "name": "Visual Intelligence Agent",
+      "type": "independent",
+      "provider": "openai",
+      "model": "gpt-4.1",
+      "temperature": 0.7,
+      "top_p": 0.9,
+      "capabilities": ["image"],
+      "image_output_config": {
+        "model": "gemini/gemini-3-pro-image-preview"
+      },
+      "response_schema_file": "response_schemas/visual_intelligence_agent_response.json"
+    },
+    "llm_judge_agent": {
+      "agent_id": "698f051f2ae20ba37e454295",
+      "name": "LLM Judge Agent",
+      "type": "independent",
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-5",
+      "temperature": 0.3,
+      "top_p": 1,
+      "capabilities": ["text"],
+      "response_schema_file": "response_schemas/llm_judge_agent_response.json"
+    }
+  },
+  "schedules": {
+    "content_orchestrator_daily": {
+      "schedule_id": "698f052a399dfadeac3745bc",
+      "agent_id": "698f051e12acde9bce1a2ed4",
+      "agent_name": "Content Orchestrator",
+      "cron_expression": "0 9 * * *",
+      "timezone": "UTC",
+      "message": "Generate a LinkedIn post based on trending industry topics and themes. Research current trends, write an optimized post, validate facts, and humanize the content.",
+      "is_active": true,
+      "next_run_time": "2026-02-14T09:00:00Z"
+    }
+  },
+  "workflow": {
+    "nodes": [
+      "input_node",
+      "content_orchestrator",
+      "deep_research_agent",
+      "linkedin_writer_agent",
+      "fact_validation_agent",
+      "humanization_agent",
+      "visual_intelligence_agent",
+      "llm_judge_agent",
+      "scheduler_node",
+      "output_node"
+    ],
+    "edges": [
+      {"source": "input_node", "target": "content_orchestrator"},
+      {"source": "content_orchestrator", "target": "deep_research_agent"},
+      {"source": "content_orchestrator", "target": "linkedin_writer_agent"},
+      {"source": "content_orchestrator", "target": "fact_validation_agent"},
+      {"source": "content_orchestrator", "target": "humanization_agent"},
+      {"source": "content_orchestrator", "target": "visual_intelligence_agent"},
+      {"source": "visual_intelligence_agent", "target": "llm_judge_agent"},
+      {"source": "llm_judge_agent", "target": "output_node"},
+      {"source": "scheduler_node", "target": "content_orchestrator"}
+    ]
+  }
+}
