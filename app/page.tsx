@@ -970,28 +970,26 @@ export default function Page() {
             {/* History Detail Modal */}
             {selectedHistoryItem && (
               <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setSelectedHistoryItem(null)}>
-                <Card className="bg-slate-900 border-slate-700 w-full max-w-2xl max-h-[80vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
-                  <CardHeader className="flex flex-row items-center justify-between">
+                <Card className="bg-slate-900 border-slate-700 w-full max-w-2xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+                  <CardHeader className="flex flex-row items-center justify-between flex-shrink-0">
                     <div>
                       <CardTitle className="text-white">{selectedHistoryItem?.topic ?? 'Untitled'}</CardTitle>
                       <CardDescription className="text-slate-500">{formatTimestamp(selectedHistoryItem?.timestamp)}</CardDescription>
                     </div>
                     <button onClick={() => setSelectedHistoryItem(null)} className="text-slate-400 hover:text-white"><FiX className="w-5 h-5" /></button>
                   </CardHeader>
-                  <CardContent>
-                    <ScrollArea className="max-h-[50vh]">
-                      <div className="space-y-4">
-                        <LinkedInPostPreview post={selectedHistoryItem?.finalPost ?? ''} hashtags={Array.isArray(selectedHistoryItem?.hashtags) ? selectedHistoryItem.hashtags : []} />
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <Badge variant="outline" className="border-slate-600 text-slate-300">{selectedHistoryItem?.tone ?? 'N/A'}</Badge>
-                          <Badge variant="outline" className="border-slate-600 text-slate-300">{selectedHistoryItem?.targetAudience ?? 'N/A'}</Badge>
-                          <Badge variant="outline" className="border-slate-600 text-slate-300">{selectedHistoryItem?.validationStatus ?? 'N/A'}</Badge>
-                          {typeof selectedHistoryItem?.score === 'number' && selectedHistoryItem.score > 0 && (
-                            <Badge className={`text-white ${getVerdictColor(selectedHistoryItem.verdict)}`}>{selectedHistoryItem.score.toFixed(1)}/10 - {getVerdictLabel(selectedHistoryItem.verdict)}</Badge>
-                          )}
-                        </div>
+                  <CardContent className="flex-1 overflow-y-auto min-h-0">
+                    <div className="space-y-4 pb-4">
+                      <LinkedInPostPreview post={selectedHistoryItem?.finalPost ?? ''} hashtags={Array.isArray(selectedHistoryItem?.hashtags) ? selectedHistoryItem.hashtags : []} />
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant="outline" className="border-slate-600 text-slate-300">{selectedHistoryItem?.tone ?? 'N/A'}</Badge>
+                        <Badge variant="outline" className="border-slate-600 text-slate-300">{selectedHistoryItem?.targetAudience ?? 'N/A'}</Badge>
+                        <Badge variant="outline" className="border-slate-600 text-slate-300">{selectedHistoryItem?.validationStatus ?? 'N/A'}</Badge>
+                        {typeof selectedHistoryItem?.score === 'number' && selectedHistoryItem.score > 0 && (
+                          <Badge className={`text-white ${getVerdictColor(selectedHistoryItem.verdict)}`}>{selectedHistoryItem.score.toFixed(1)}/10 - {getVerdictLabel(selectedHistoryItem.verdict)}</Badge>
+                        )}
                       </div>
-                    </ScrollArea>
+                    </div>
                   </CardContent>
                 </Card>
               </div>
