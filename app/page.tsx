@@ -12,7 +12,7 @@ import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
 import { Label } from '@/components/ui/label'
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
-import { FiEdit, FiCopy, FiCheck, FiImage, FiStar, FiClock, FiPlay, FiPause, FiRefreshCw, FiTrendingUp, FiFileText, FiBarChart2, FiShield, FiUsers, FiZap, FiChevronDown, FiChevronUp, FiTrash2, FiPlus, FiEye, FiX, FiAlertCircle, FiActivity, FiAward, FiBookOpen, FiMessageSquare, FiLayers, FiSettings } from 'react-icons/fi'
+import { FiEdit, FiCopy, FiCheck, FiImage, FiStar, FiClock, FiPlay, FiPause, FiRefreshCw, FiTrendingUp, FiFileText, FiBarChart2, FiShield, FiUsers, FiZap, FiChevronDown, FiChevronUp, FiTrash2, FiPlus, FiEye, FiX, FiAlertCircle, FiActivity, FiAward, FiBookOpen, FiMessageSquare, FiLayers, FiSettings, FiSend, FiCornerDownLeft } from 'react-icons/fi'
 
 // =====================================================================
 // CONSTANTS
@@ -96,6 +96,14 @@ interface JudgeResult {
   improvement_notes?: string[]
   strengths?: string[]
   verdict?: string
+}
+
+interface FeedbackMessage {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: string
+  isReworking?: boolean
 }
 
 // =====================================================================
@@ -422,6 +430,13 @@ export default function Page() {
   const [researchOpen, setResearchOpen] = useState(false)
   const [humanNotesOpen, setHumanNotesOpen] = useState(false)
 
+  // Feedback chat
+  const [feedbackMessages, setFeedbackMessages] = useState<FeedbackMessage[]>([])
+  const [feedbackInput, setFeedbackInput] = useState('')
+  const [feedbackLoading, setFeedbackLoading] = useState(false)
+  const [showFeedbackChat, setShowFeedbackChat] = useState(false)
+  const feedbackEndRef = React.useRef<HTMLDivElement>(null)
+
   // History
   const [history, setHistory] = useState<ContentHistoryItem[]>([])
   const [selectedHistoryItem, setSelectedHistoryItem] = useState<ContentHistoryItem | null>(null)
@@ -667,6 +682,118 @@ export default function Page() {
     const updated = history.filter(h => h.id !== id)
     saveHistory(updated)
   }, [history, saveHistory])
+
+  // Auto-scroll feedback chat
+  useEffect(() => {
+    if (feedbackEndRef.current) {
+      feedbackEndRef.current.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [feedbackMessages])
+
+  // Reset feedback chat when new content is generated
+  useEffect(() => {
+    if (contentResult?.final_post) {
+      setFeedbackMessages([])
+      setShowFeedbackChat(true)
+    }
+  }, [contentResult?.final_post])
+
+  // =====================================================================
+  // FEEDBACK REWORK
+  // =====================================================================
+
+  const handleSendFeedback = useCallback(async () => {
+    const feedback = feedbackInput.trim()
+    if (!feedback) return
+    if (!contentResult?.final_post) {
+      setErrorMsg('No content to rework. Generate content first.')
+      return
+    }
+
+    const userMsg: FeedbackMessage = {
+      id: generateId(),
+      role: 'user',
+      content: feedback,
+      timestamp: new Date().toISOString()
+    }
+    setFeedbackMessages(prev => [...prev, userMsg])
+    setFeedbackInput('')
+    setFeedbackLoading(true)
+    setActiveAgentId(CONTENT_ORCHESTRATOR_ID)
+
+    const reworkPrompt = `REWORK REQUEST:
+The following LinkedIn post needs revisions based on user feedback.
+
+CURRENT POST:
+${contentResult.final_post}
+
+CURRENT HASHTAGS:
+${Array.isArray(contentResult.hashtags) ? contentResult.hashtags.join(', ') : 'None'}
+
+TONE: ${contentResult.tone ?? toneSelect}
+TARGET AUDIENCE: ${contentResult.target_audience ?? audienceSelect}
+POST LENGTH: ${postLength}
+CTA STYLE: ${ctaStyle}
+
+USER FEEDBACK:
+${feedback}
+
+Please rework the post incorporating this feedback while maintaining the same format and quality standards. Return the revised post with all fields updated.`
+
+    try {
+      const result = await callAIAgent(reworkPrompt, CONTENT_ORCHESTRATOR_ID)
+
+      if (result?.success && result?.response?.result) {
+        const data = result.response.result as ContentResult
+        const updatedContent: ContentResult = {
+          final_post: data?.final_post ?? contentResult.final_post,
+          research_summary: data?.research_summary ?? contentResult.research_summary,
+          hashtags: Array.isArray(data?.hashtags) ? data.hashtags : contentResult.hashtags,
+          validation_status: data?.validation_status ?? contentResult.validation_status,
+          humanization_notes: data?.humanization_notes ?? contentResult.humanization_notes,
+          revision_count: String(Number(contentResult.revision_count ?? '0') + 1),
+          content_type: data?.content_type ?? contentResult.content_type,
+          target_audience: data?.target_audience ?? contentResult.target_audience,
+          tone: data?.tone ?? contentResult.tone
+        }
+        setContentResult(updatedContent)
+
+        // Clear previous evaluation since post changed
+        setJudgeResult(null)
+        setShowEvalPanel(false)
+
+        const assistantMsg: FeedbackMessage = {
+          id: generateId(),
+          role: 'assistant',
+          content: `Post has been reworked based on your feedback. The revised version is now displayed above.\n\nChanges applied: ${feedback}`,
+          timestamp: new Date().toISOString()
+        }
+        setFeedbackMessages(prev => [...prev, assistantMsg])
+        setSuccessMsg('Post reworked successfully!')
+      } else {
+        const errMsg: FeedbackMessage = {
+          id: generateId(),
+          role: 'assistant',
+          content: `I wasn't able to rework the post. ${result?.error ?? 'Please try again with different feedback.'}`,
+          timestamp: new Date().toISOString()
+        }
+        setFeedbackMessages(prev => [...prev, errMsg])
+        setErrorMsg(result?.error ?? 'Failed to rework content.')
+      }
+    } catch {
+      const errMsg: FeedbackMessage = {
+        id: generateId(),
+        role: 'assistant',
+        content: 'An error occurred while reworking the post. Please try again.',
+        timestamp: new Date().toISOString()
+      }
+      setFeedbackMessages(prev => [...prev, errMsg])
+      setErrorMsg('An error occurred while reworking content.')
+    } finally {
+      setFeedbackLoading(false)
+      setActiveAgentId(null)
+    }
+  }, [feedbackInput, contentResult, toneSelect, audienceSelect, postLength, ctaStyle])
 
   // =====================================================================
   // SCHEDULE FUNCTIONS
@@ -1247,6 +1374,131 @@ export default function Page() {
                         Save to History
                       </Button>
                     </div>
+
+                    {/* Feedback Chat */}
+                    {showFeedbackChat && displayContent && !showSample && (
+                      <Card className="bg-slate-900/60 border-slate-700/50">
+                        <CardHeader className="pb-3">
+                          <div className="flex items-center justify-between">
+                            <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
+                              <FiMessageSquare className="w-4 h-4 text-blue-400" />
+                              Feedback & Rework
+                            </CardTitle>
+                            <div className="flex items-center gap-2">
+                              {feedbackMessages.length > 0 && (
+                                <Badge variant="outline" className="border-slate-600 text-slate-400 text-xs">
+                                  {feedbackMessages.filter(m => m.role === 'user').length} revision{feedbackMessages.filter(m => m.role === 'user').length !== 1 ? 's' : ''}
+                                </Badge>
+                              )}
+                              <button
+                                onClick={() => { setFeedbackMessages([]); setFeedbackInput('') }}
+                                className="text-slate-600 hover:text-slate-400 transition-colors"
+                                title="Clear chat"
+                              >
+                                <FiTrash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                          <CardDescription className="text-slate-500 text-xs">
+                            Provide feedback to refine the post. The Content Orchestrator will rework it based on your instructions.
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                          {/* Chat Messages */}
+                          {feedbackMessages.length > 0 && (
+                            <ScrollArea className="max-h-72">
+                              <div className="space-y-3 pr-2">
+                                {feedbackMessages.map((msg) => (
+                                  <div
+                                    key={msg.id}
+                                    className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                                  >
+                                    <div className={`max-w-[85%] rounded-xl px-4 py-2.5 ${msg.role === 'user' ? 'bg-blue-600/30 border border-blue-500/30 text-blue-100' : 'bg-slate-800/60 border border-slate-700/40 text-slate-300'}`}>
+                                      <div className="flex items-center gap-2 mb-1">
+                                        {msg.role === 'user' ? (
+                                          <FiCornerDownLeft className="w-3 h-3 text-blue-400 flex-shrink-0" />
+                                        ) : (
+                                          <FiZap className="w-3 h-3 text-emerald-400 flex-shrink-0" />
+                                        )}
+                                        <span className="text-xs font-medium text-slate-500">
+                                          {msg.role === 'user' ? 'You' : 'Content Orchestrator'}
+                                        </span>
+                                        <span className="text-xs text-slate-600 ml-auto">
+                                          {formatTimestamp(msg.timestamp).split(',').pop()?.trim() ?? ''}
+                                        </span>
+                                      </div>
+                                      <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                                    </div>
+                                  </div>
+                                ))}
+                                {feedbackLoading && (
+                                  <div className="flex justify-start">
+                                    <div className="bg-slate-800/60 border border-slate-700/40 rounded-xl px-4 py-3">
+                                      <div className="flex items-center gap-2">
+                                        <LoadingSpinner size="sm" />
+                                        <span className="text-xs text-slate-400">Reworking post...</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                                <div ref={feedbackEndRef} />
+                              </div>
+                            </ScrollArea>
+                          )}
+
+                          {/* Input Area */}
+                          <div className="flex gap-2 items-end">
+                            <div className="flex-1 relative">
+                              <Textarea
+                                placeholder="e.g., Make the tone more casual, add a personal anecdote, shorten the intro..."
+                                value={feedbackInput}
+                                onChange={(e) => setFeedbackInput(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault()
+                                    handleSendFeedback()
+                                  }
+                                }}
+                                className="min-h-[60px] max-h-[120px] bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-600 resize-none pr-3 text-sm"
+                                disabled={feedbackLoading}
+                              />
+                            </div>
+                            <Button
+                              onClick={handleSendFeedback}
+                              disabled={feedbackLoading || !feedbackInput.trim()}
+                              className="bg-blue-600 hover:bg-blue-700 text-white h-[60px] px-4 flex-shrink-0"
+                            >
+                              {feedbackLoading ? <LoadingSpinner size="sm" /> : <FiSend className="w-4 h-4" />}
+                            </Button>
+                          </div>
+
+                          {/* Quick Feedback Suggestions */}
+                          {feedbackMessages.length === 0 && (
+                            <div className="space-y-2">
+                              <p className="text-xs text-slate-500 font-medium">Quick suggestions:</p>
+                              <div className="flex flex-wrap gap-1.5">
+                                {[
+                                  'Make it more conversational',
+                                  'Add specific metrics or data',
+                                  'Shorten the post',
+                                  'Make the hook stronger',
+                                  'Add a personal story element',
+                                  'Change CTA to be more engaging'
+                                ].map((suggestion) => (
+                                  <button
+                                    key={suggestion}
+                                    onClick={() => setFeedbackInput(suggestion)}
+                                    className="px-2.5 py-1 rounded-md text-xs bg-slate-800/40 border border-slate-700/40 text-slate-400 hover:text-slate-200 hover:border-slate-600/60 hover:bg-slate-800/60 transition-all"
+                                  >
+                                    {suggestion}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    )}
 
                     {/* Research Summary */}
                     {displayContent?.research_summary && (
