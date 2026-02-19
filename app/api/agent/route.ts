@@ -218,25 +218,30 @@ export async function POST(request: NextRequest) {
         const errorData = JSON.parse(rawText)
         errorMsg = errorData?.detail || errorData?.error || errorData?.message || errorMsg
       } catch {
-        try {
-          const errorData = parseLLMJson(rawText)
-          errorMsg = errorData?.error || errorData?.message || errorMsg
-        } catch {}
+        // If the upstream returned HTML (e.g. gateway error), provide a clear message
+        const isHtml = rawText.trimStart().startsWith('<')
+        if (isHtml) {
+          errorMsg = `Upstream service returned an error (HTTP ${response.status}). Please try again.`
+        } else {
+          try {
+            const errorData = parseLLMJson(rawText)
+            if (errorData && typeof errorData === 'object' && !('success' in errorData && errorData.success === false)) {
+              errorMsg = errorData?.error || errorData?.message || errorMsg
+            }
+          } catch {}
+        }
       }
 
-      return NextResponse.json(
-        {
-          success: false,
-          response: {
-            status: 'error',
-            result: {},
-            message: errorMsg,
-          },
-          error: errorMsg,
-          raw_response: rawText,
+      // Always return 200 with success:false so the client can reliably parse JSON
+      return NextResponse.json({
+        success: false,
+        response: {
+          status: 'error',
+          result: {},
+          message: errorMsg,
         },
-        { status: response.status }
-      )
+        error: errorMsg,
+      })
     }
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : 'Server error'

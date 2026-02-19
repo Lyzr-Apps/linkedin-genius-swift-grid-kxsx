@@ -616,33 +616,53 @@ export default function Page() {
     setErrorMsg(null)
     setActiveAgentId(LLM_JUDGE_ID)
 
-    try {
-      const result = await callAIAgent(`Evaluate this LinkedIn post:\n\n${post}`, LLM_JUDGE_ID)
+    const MAX_RETRIES = 2
+    let lastError = ''
 
-      if (result?.success && result?.response?.result) {
-        const data = result.response.result as JudgeResult
-        setJudgeResult({
-          clarity_score: typeof data?.clarity_score === 'number' ? data.clarity_score : 0,
-          originality_score: typeof data?.originality_score === 'number' ? data.originality_score : 0,
-          authority_score: typeof data?.authority_score === 'number' ? data.authority_score : 0,
-          authenticity_score: typeof data?.authenticity_score === 'number' ? data.authenticity_score : 0,
-          engagement_potential_score: typeof data?.engagement_potential_score === 'number' ? data.engagement_potential_score : 0,
-          factual_integrity: data?.factual_integrity ?? 'Unknown',
-          overall_score: typeof data?.overall_score === 'number' ? data.overall_score : 0,
-          improvement_notes: Array.isArray(data?.improvement_notes) ? data.improvement_notes : [],
-          strengths: Array.isArray(data?.strengths) ? data.strengths : [],
-          verdict: data?.verdict ?? 'Unknown'
-        })
-        setSuccessMsg('Evaluation complete!')
-      } else {
-        setErrorMsg(result?.error ?? 'Failed to evaluate content.')
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        if (attempt > 0) {
+          // Brief delay before retry
+          await new Promise(r => setTimeout(r, 1500 * attempt))
+        }
+
+        const result = await callAIAgent(`Evaluate this LinkedIn post:\n\n${post}`, LLM_JUDGE_ID)
+
+        if (result?.success && result?.response?.result) {
+          const data = result.response.result as JudgeResult
+          setJudgeResult({
+            clarity_score: typeof data?.clarity_score === 'number' ? data.clarity_score : 0,
+            originality_score: typeof data?.originality_score === 'number' ? data.originality_score : 0,
+            authority_score: typeof data?.authority_score === 'number' ? data.authority_score : 0,
+            authenticity_score: typeof data?.authenticity_score === 'number' ? data.authenticity_score : 0,
+            engagement_potential_score: typeof data?.engagement_potential_score === 'number' ? data.engagement_potential_score : 0,
+            factual_integrity: data?.factual_integrity ?? 'Unknown',
+            overall_score: typeof data?.overall_score === 'number' ? data.overall_score : 0,
+            improvement_notes: Array.isArray(data?.improvement_notes) ? data.improvement_notes : [],
+            strengths: Array.isArray(data?.strengths) ? data.strengths : [],
+            verdict: data?.verdict ?? 'Unknown'
+          })
+          setSuccessMsg('Evaluation complete!')
+          setJudgeLoading(false)
+          setActiveAgentId(null)
+          return
+        } else {
+          lastError = result?.error ?? 'Failed to evaluate content.'
+          // If it's a transient error (gateway/HTML), retry
+          const isTransient = lastError.toLowerCase().includes('gateway') || lastError.toLowerCase().includes('html') || lastError.toLowerCase().includes('try again')
+          if (isTransient && attempt < MAX_RETRIES) continue
+          break
+        }
+      } catch {
+        lastError = 'An error occurred during evaluation.'
+        if (attempt < MAX_RETRIES) continue
+        break
       }
-    } catch {
-      setErrorMsg('An error occurred during evaluation.')
-    } finally {
-      setJudgeLoading(false)
-      setActiveAgentId(null)
     }
+
+    setErrorMsg(lastError || 'Failed to evaluate content. Please try again.')
+    setJudgeLoading(false)
+    setActiveAgentId(null)
   }, [contentResult])
 
   const handleSaveToHistory = useCallback(() => {

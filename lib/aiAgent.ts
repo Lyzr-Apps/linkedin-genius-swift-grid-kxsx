@@ -97,7 +97,29 @@ export async function callAIAgent(
       }),
     })
 
-    const data = await response.json()
+    const rawText = await response.text()
+
+    // Guard against non-JSON responses (e.g. HTML error pages from gateway/proxy)
+    let data: any
+    try {
+      data = JSON.parse(rawText)
+    } catch {
+      const isHtml = rawText.trimStart().startsWith('<')
+      return {
+        success: false,
+        response: {
+          status: 'error',
+          result: {},
+          message: isHtml
+            ? 'The server returned an unexpected response. Please try again in a moment.'
+            : 'Invalid response from server.',
+        },
+        error: isHtml
+          ? 'Server returned HTML instead of JSON — likely a temporary gateway error.'
+          : 'Failed to parse server response.',
+      }
+    }
+
     return data
   } catch (error) {
     return {
