@@ -440,6 +440,7 @@ export default function Page() {
   // History
   const [history, setHistory] = useState<ContentHistoryItem[]>([])
   const [selectedHistoryItem, setSelectedHistoryItem] = useState<ContentHistoryItem | null>(null)
+  const currentHistoryIdRef = React.useRef<string | null>(null)
 
   // Schedule state
   const [schedule, setSchedule] = useState<Schedule | null>(null)
@@ -533,7 +534,7 @@ export default function Page() {
 
       if (result?.success && result?.response?.result) {
         const data = result.response.result as ContentResult
-        setContentResult({
+        const generatedContent = {
           final_post: data?.final_post ?? '',
           research_summary: data?.research_summary ?? '',
           hashtags: Array.isArray(data?.hashtags) ? data.hashtags : [],
@@ -543,7 +544,28 @@ export default function Page() {
           content_type: data?.content_type ?? '',
           target_audience: data?.target_audience ?? '',
           tone: data?.tone ?? ''
+        }
+        setContentResult(generatedContent)
+
+        // Auto-save to history
+        const historyId = generateId()
+        currentHistoryIdRef.current = historyId
+        const historyItem: ContentHistoryItem = {
+          id: historyId,
+          timestamp: new Date().toISOString(),
+          topic: inputText.slice(0, 100),
+          finalPost: generatedContent.final_post,
+          hashtags: generatedContent.hashtags,
+          validationStatus: generatedContent.validation_status,
+          tone: generatedContent.tone || toneSelect,
+          targetAudience: generatedContent.target_audience || audienceSelect,
+        }
+        setHistory(prev => {
+          const updated = [historyItem, ...prev]
+          try { localStorage.setItem(HISTORY_KEY, JSON.stringify(updated)) } catch {}
+          return updated
         })
+
         setSuccessMsg('Content generated successfully!')
       } else {
         setErrorMsg(result?.error ?? 'Failed to generate content. Please try again.')
@@ -642,6 +664,21 @@ export default function Page() {
             strengths: Array.isArray(data?.strengths) ? data.strengths : [],
             verdict: data?.verdict ?? 'Unknown'
           })
+          // Auto-update history entry with evaluation score
+          const evalScore = typeof data?.overall_score === 'number' ? data.overall_score : undefined
+          const evalVerdict = data?.verdict ?? undefined
+          if (currentHistoryIdRef.current && (evalScore !== undefined || evalVerdict)) {
+            setHistory(prev => {
+              const updated = prev.map(h =>
+                h.id === currentHistoryIdRef.current
+                  ? { ...h, score: evalScore, verdict: evalVerdict }
+                  : h
+              )
+              try { localStorage.setItem(HISTORY_KEY, JSON.stringify(updated)) } catch {}
+              return updated
+            })
+          }
+
           setSuccessMsg('Evaluation complete!')
           setJudgeLoading(false)
           setActiveAgentId(null)
@@ -670,22 +707,71 @@ export default function Page() {
       setErrorMsg('No content to save.')
       return
     }
-    const item: ContentHistoryItem = {
-      id: generateId(),
-      timestamp: new Date().toISOString(),
-      topic: inputText.slice(0, 100),
-      finalPost: contentResult.final_post ?? '',
-      hashtags: Array.isArray(contentResult.hashtags) ? contentResult.hashtags : [],
-      validationStatus: contentResult.validation_status ?? '',
-      tone: contentResult.tone ?? toneSelect,
-      targetAudience: contentResult.target_audience ?? audienceSelect,
-      score: judgeResult?.overall_score,
-      verdict: judgeResult?.verdict
+
+    // Update existing auto-saved entry with latest data (including eval score)
+    if (currentHistoryIdRef.current) {
+      setHistory(prev => {
+        const exists = prev.some(h => h.id === currentHistoryIdRef.current)
+        let updated: ContentHistoryItem[]
+        if (exists) {
+          updated = prev.map(h =>
+            h.id === currentHistoryIdRef.current
+              ? {
+                  ...h,
+                  finalPost: contentResult.final_post ?? h.finalPost,
+                  hashtags: Array.isArray(contentResult.hashtags) ? contentResult.hashtags : h.hashtags,
+                  validationStatus: contentResult.validation_status ?? h.validationStatus,
+                  tone: contentResult.tone ?? h.tone,
+                  targetAudience: contentResult.target_audience ?? h.targetAudience,
+                  score: judgeResult?.overall_score ?? h.score,
+                  verdict: judgeResult?.verdict ?? h.verdict,
+                  timestamp: new Date().toISOString(),
+                }
+              : h
+          )
+        } else {
+          // Entry was deleted or missing — create new
+          const item: ContentHistoryItem = {
+            id: currentHistoryIdRef.current!,
+            timestamp: new Date().toISOString(),
+            topic: inputText.slice(0, 100),
+            finalPost: contentResult.final_post ?? '',
+            hashtags: Array.isArray(contentResult.hashtags) ? contentResult.hashtags : [],
+            validationStatus: contentResult.validation_status ?? '',
+            tone: contentResult.tone ?? toneSelect,
+            targetAudience: contentResult.target_audience ?? audienceSelect,
+            score: judgeResult?.overall_score,
+            verdict: judgeResult?.verdict,
+          }
+          updated = [item, ...prev]
+        }
+        try { localStorage.setItem(HISTORY_KEY, JSON.stringify(updated)) } catch {}
+        return updated
+      })
+    } else {
+      // No current ref (shouldn't happen, but fallback)
+      const item: ContentHistoryItem = {
+        id: generateId(),
+        timestamp: new Date().toISOString(),
+        topic: inputText.slice(0, 100),
+        finalPost: contentResult.final_post ?? '',
+        hashtags: Array.isArray(contentResult.hashtags) ? contentResult.hashtags : [],
+        validationStatus: contentResult.validation_status ?? '',
+        tone: contentResult.tone ?? toneSelect,
+        targetAudience: contentResult.target_audience ?? audienceSelect,
+        score: judgeResult?.overall_score,
+        verdict: judgeResult?.verdict,
+      }
+      const newId = item.id
+      currentHistoryIdRef.current = newId
+      setHistory(prev => {
+        const updated = [item, ...prev]
+        try { localStorage.setItem(HISTORY_KEY, JSON.stringify(updated)) } catch {}
+        return updated
+      })
     }
-    const updated = [item, ...history]
-    saveHistory(updated)
-    setSuccessMsg('Content saved to history!')
-  }, [contentResult, inputText, toneSelect, audienceSelect, judgeResult, history, saveHistory])
+    setSuccessMsg('History updated!')
+  }, [contentResult, inputText, toneSelect, audienceSelect, judgeResult])
 
   const handleCopy = useCallback(async () => {
     const text = contentResult?.final_post ?? ''
@@ -781,6 +867,29 @@ Please rework the post incorporating this feedback while maintaining the same fo
         // Clear previous evaluation since post changed
         setJudgeResult(null)
         setShowEvalPanel(false)
+
+        // Auto-update history entry with reworked content
+        if (currentHistoryIdRef.current) {
+          setHistory(prev => {
+            const updated = prev.map(h =>
+              h.id === currentHistoryIdRef.current
+                ? {
+                    ...h,
+                    finalPost: updatedContent.final_post ?? h.finalPost,
+                    hashtags: Array.isArray(updatedContent.hashtags) ? updatedContent.hashtags : h.hashtags,
+                    validationStatus: updatedContent.validation_status ?? h.validationStatus,
+                    tone: updatedContent.tone ?? h.tone,
+                    targetAudience: updatedContent.target_audience ?? h.targetAudience,
+                    timestamp: new Date().toISOString(),
+                    score: undefined,
+                    verdict: undefined,
+                  }
+                : h
+            )
+            try { localStorage.setItem(HISTORY_KEY, JSON.stringify(updated)) } catch {}
+            return updated
+          })
+        }
 
         const assistantMsg: FeedbackMessage = {
           id: generateId(),
@@ -1390,8 +1499,8 @@ Please rework the post incorporating this feedback while maintaining the same fo
                         Regenerate
                       </Button>
                       <Button onClick={handleSaveToHistory} disabled={showSample} variant="outline" className="border-emerald-800/60 text-emerald-400 hover:bg-emerald-900/30 gap-2">
-                        <FiStar className="w-4 h-4" />
-                        Save to History
+                        <FiCheck className="w-4 h-4" />
+                        Update History
                       </Button>
                     </div>
 
